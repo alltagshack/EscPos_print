@@ -314,8 +314,8 @@ void printImage (int fd, const uint8_t *img)
  * @todo
  * - handle #, ##, ###
  * - handle bold
- * - handle italic as 2nd font?
- * - handle `code` as Font A
+ * - handle emphasize as underline
+ * - handle `code` as font A
  * - handle unordered lists with "- "
  * - handle links (as bold)
  * - handle ordered list with "1. "
@@ -324,6 +324,8 @@ void printMarkdown (int fd, const uint8_t *src, const size_t *size)
 {
     int e;
     int is_bold = 0;
+    int is_emphasize = 0;
+    int is_code = 0;
     const char *in_encoding  = "UTF-8";
     const char *out_encoding = "CP858";
 
@@ -357,7 +359,7 @@ void printMarkdown (int fd, const uint8_t *src, const size_t *size)
 
     // font B (default)
     write(fd, "\x1B\x4D\x01", 3);
-
+    
     for (size_t i = 0; i < (out_used-2); ++i)
     {
         if (data[i] == '\n' && data[i+1] == '\n')
@@ -378,6 +380,34 @@ void printMarkdown (int fd, const uint8_t *src, const size_t *size)
                 write(fd, "\x1B\x45\x00", 3);
             }
             i++;
+        }
+        else if (i > 0 && data[i] == '`' && data[i+1] != '`')
+        {
+            if (data[i-1] != '`') {
+                if (is_code == 0) {
+                    is_code = 1;
+                    // font A
+                    write(fd, "\x1B\x4D\x00", 3);
+                } else {
+                    is_code = 0;
+                    // font B
+                    write(fd, "\x1B\x4D\x01", 3);
+                }
+            }
+        }
+        else if (i > 0 && data[i] == '*' && data[i+1] != '*')
+        {
+            if (data[i-1] != '*') {
+                if (is_emphasize == 0) {
+                    is_emphasize = 1;
+                    // underline
+                    write(fd, "\x1B\x2D\x01", 3);
+                } else {
+                    is_emphasize = 0;
+                    // no-underline
+                    write(fd, "\x1B\x2D\x00", 3);
+                }
+            }
         }
         else if (data[i] == '\n' && data[i+1] == '-' && data[i+2] == ' ')
         {
