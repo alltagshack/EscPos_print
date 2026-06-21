@@ -323,6 +323,7 @@ void printImage (int fd, const uint8_t *img)
 void printMarkdown (int fd, const uint8_t *src, const size_t *size)
 {
     int e;
+    int is_bold = 0;
     const char *in_encoding  = "UTF-8";
     const char *out_encoding = "CP858";
 
@@ -356,13 +357,10 @@ void printMarkdown (int fd, const uint8_t *src, const size_t *size)
 
     // font B (default)
     write(fd, "\x1B\x4D\x01", 3);
-    
-    // process first byte makes the rest easier
-    write(fd, &(data[0]), 1);
 
-    for (size_t i = 1; i < out_used; ++i)
+    for (size_t i = 0; i < (out_used-2); ++i)
     {
-        if (data[i-1] == '\n' && data[i] == '\n')
+        if (data[i] == '\n' && data[i+1] == '\n')
         {
             write(fd, "\n", 1);
             // reset to small size
@@ -370,18 +368,30 @@ void printMarkdown (int fd, const uint8_t *src, const size_t *size)
             //linefeed mini
             write(fd, "\x1B\x33\x10", 3);
         }
-        else if (data[i-1] == '\n' && data[i] == '-')
+        else if (data[i] == '*' && data[i+1] == '*')
         {
-            // simple unordered list
-            write(fd, "\n-", 2);
+            if (is_bold == 0) {
+                is_bold = 1;
+                write(fd, "\x1B\x45\x01", 3);
+            } else {
+                is_bold = 0;
+                write(fd, "\x1B\x45\x00", 3);
+            }
+            i++;
         }
-        else if (data[i-1] == '\n' && data[i] == '#')
+        else if (data[i] == '\n' && data[i+1] == '-' && data[i+2] == ' ')
+        {
+            // simple unordered list has newlines
+            write(fd, "\n", 1);
+        }
+        else if (data[i] == '\n' && data[i+1] == '#')
         {
             // simple headlines
             
             write(fd, "\n", 1);
             // max font size
             write(fd, "\x1D\x21\x11", 3);
+            i++;
             
             if ((i+1) < out_used && data[i+1] == '#') {
                 // max-1 font size
@@ -396,7 +406,7 @@ void printMarkdown (int fd, const uint8_t *src, const size_t *size)
             if ((i+1) < out_used && data[i+1] == ' ') i++;
             
         }
-        else if (data[i-1] != '\n' && data[i] == '\n')
+        else if (data[i] == '\n' && data[i+1] != '\n')
         {
             // ignore a single newline
         }
@@ -405,6 +415,8 @@ void printMarkdown (int fd, const uint8_t *src, const size_t *size)
             write(fd, &(data[i]), 1);
         }
     }
+
+    write(fd, &(data[out_used-2]), 2);
     // final newline to print rest
     write(fd, "\n", 1);
     
