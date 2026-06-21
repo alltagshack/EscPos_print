@@ -2,14 +2,15 @@
  *
  *  180dpi mode
  * 
- *  Compile (needs libpng and iconv):
- *      gcc escpos_print.c -Wall -lpng -liconv -o escposPrint
+ *  Compile (needs libpng and iconv?):
+ *      gcc escpos_print.c -Wall -lpng -o escposPrint
  *
  *  Usage:
  *      ./escposPrint <bmp png or md file> <device>
  *
  */
 
+#include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
@@ -118,6 +119,43 @@ void ditherAtkinson (uint8_t *img, int w, int h)
     }
 }
 
+size_t replace_ugly (uint8_t *buf, size_t len)
+{
+    const struct {
+        const uint8_t seq[4];
+        size_t       seq_len;
+        const char   newchar;
+    } table[] = {
+        /* small space */                  { {0xE2,0x80,0xAF,0}, 3, ' ' },
+        /* Hyphen                U+2010 */ { {0xE2,0x80,0x90,0}, 3, '-' },
+        /* Non‑breaking hyphen   U+2011 */ { {0xE2,0x80,0x91,0}, 3, '-' },
+        /* Minus sign            U+2212 */ { {0xE2,0x88,0x92,0}, 3, '-' },
+        /* En dash               U+2013 */ { {0xE2,0x80,0x93,0}, 3, '-' },
+        /* Em dash               U+2014 */ { {0xE2,0x80,0x94,0}, 3, '-' },
+        /* Figure dash           U+2012 */ { {0xE2,0x80,0x92,0}, 3, '-' },
+        /* Full‑width hyphen‑minusU+FF0D */ { {0xEF,0xBC,0x8D,0}, 3, '-' },
+        /* Small hyphen‑minus    U+FE63 */ { {0xEF,0x99,0xA3,0}, 3, '-' }
+    };
+
+    size_t i = 0, out = 0;
+    while (i < len) {
+        int replaced = 0;
+        for (size_t t = 0; t < sizeof(table)/sizeof(table[0]); ++t) {
+            if (i + table[t].seq_len <= len &&
+                memcmp(buf + i, table[t].seq, table[t].seq_len) == 0) {
+                buf[out++] = table[t].newchar;
+                i += table[t].seq_len;
+                replaced = 1;
+                break;
+            }
+        }
+        if (!replaced) {
+            buf[out++] = buf[i++];
+        }
+    }
+    return out;
+}
+
 uint8_t *loadMarkdown (const char *path, size_t *size)
 {
     uint8_t *text = NULL;
@@ -130,6 +168,7 @@ uint8_t *loadMarkdown (const char *path, size_t *size)
     text = malloc(*size);
     fread(text, *size, 1, fp);
     fclose(fp);
+    *size = replace_ugly(text, *size);
     return text;
 }
 
@@ -268,6 +307,7 @@ void printImage (int fd, const uint8_t *img)
     free(scaled);
 }
 
+
 /**
  * print utf-8 binary (without bom, and only \n) with markdown format
  * 
@@ -280,15 +320,109 @@ void printImage (int fd, const uint8_t *img)
  * - handle links (as bold)
  * - handle ordered list with "1. "
  */
-void printMarkdown (int fd, const uint8_t *data, const size_t *size)
+void printMarkdown (int fd, const uint8_t *src, const size_t *size)
+{
+    int e;
+    const char *in_encoding  = "UTF-8";
+    const char *out_encoding = "CP858";
+
+    char *inbuf = (char *)src;
+    size_t inbytesleft = *size;
+
+    size_t outbuf_cap = *size;
+    char *data = malloc(outbuf_cap);
+    if (!data) abort_("malloc failed");
+
+    char *outptr = data;
+    size_t outbytesleft = outbuf_cap;
+
+    iconv_t cd = iconv_open(out_encoding, in_encoding);
+    if (cd == (iconv_t)-1) abort_("Failed to open conversion descriptor\n");
+
+    size_t res = iconv(cd, &inbuf, &inbytesleft, &outptr, &outbytesleft);
+    e = errno;
+    if (res == (size_t)-1) {
+        const char *name = strerror(e);
+        size_t bad_index = (size_t)(inbuf - (char *)src);
+        printf("iconv failed: errno=%d (%s), byte position %ld\n", e, name, bad_index);
+        inbuf[bad_index] = '\0';
+        printf("%s\n", inbuf);
+        iconv_close(cd);
+        free(data);
+        abort_("iconv failed");
+    }
+
+    size_t out_used = outbuf_cap - outbytesleft;
+
+    // font B (default)
+    write(fd, "\x1B\x4D\x01", 3);
+    
+    // process first byte makes the rest easier
+    write(fd, &(data[0]), 1);
+
+    for (size_t i = 1; i < out_used; ++i)
+    {
+        if (data[i-1] == '\n' && data[i] == '\n')
+        {
+            write(fd, "\n", 1);
+            // reset to small size
+            write(fd, "\x1D\x21\x00", 3);
+            //linefeed mini
+            write(fd, "\x1B\x33\x10", 3);
+        }
+        else if (data[i-1] == '\n' && data[i] == '-')
+        {
+            // simple unordered list
+            write(fd, "\n-", 2);
+        }
+        else if (data[i-1] == '\n' && data[i] == '#')
+        {
+            // simple headlines
+            
+            write(fd, "\n", 1);
+            // max font size
+            write(fd, "\x1D\x21\x11", 3);
+            
+            if ((i+1) < out_used && data[i+1] == '#') {
+                // max-1 font size
+                write(fd, "\x1D\x21\x10", 3);
+                i++;
+            }
+            if ((i+1) < out_used && data[i+1] == '#') {
+                // max-2 font size
+                write(fd, "\x1D\x21\x01", 3);
+                i++;
+            }
+            if ((i+1) < out_used && data[i+1] == ' ') i++;
+            
+        }
+        else if (data[i-1] != '\n' && data[i] == '\n')
+        {
+            // ignore a single newline
+        }
+        else
+        {
+            write(fd, &(data[i]), 1);
+        }
+    }
+    // final newline to print rest
+    write(fd, "\n", 1);
+    
+    iconv_close(cd);
+    free(data);
+}
+
+
+
+void printMarkdown2 (int fd, uint8_t *src, const size_t *size)
 {
     const char *in_encoding = "UTF-8";
     const char *out_encoding = "CP858";
 
-    char *inbuf = (char *)data;
+    char *inbuf = (char *)src;
     size_t inbytesleft = *size;
     size_t outbytesleft = *size;
-    char *output = NULL;
+    char *data = NULL;
 
     iconv_t cd = iconv_open(out_encoding, in_encoding);
     if (cd == (iconv_t) -1)
@@ -296,17 +430,23 @@ void printMarkdown (int fd, const uint8_t *data, const size_t *size)
         abort_("Failed to open conversion descriptor\n");
     } 
     
-    output = (char *) malloc(sizeof(char) * (*size));
-
-    iconv(cd, &inbuf, &inbytesleft, &output, &outbytesleft);
+    data = (char *) malloc(sizeof(char) * (*size));
+    
+    size_t result = iconv(cd, &inbuf, &inbytesleft, &data, &outbytesleft);
+    if (result == (size_t)-1)
+    {
+        iconv_close(cd);
+        free(data);
+        abort_("iconv failed");
+    }
     
     // font B (default)
     write(fd, "\x1B\x4D\x01", 3);
     
     // process first byte makes the rest easier
     write(fd, &(data[0]), 1);
-    
-    for (unsigned long i = 1; i < outbytesleft; ++i)
+
+    for (size_t i = 1; i < outbytesleft; ++i)
     {
         if (data[i-1] == '\n' && data[i] == '\n')
         {
@@ -340,7 +480,7 @@ void printMarkdown (int fd, const uint8_t *data, const size_t *size)
     }
     
     iconv_close(cd);
-    free(output);
+    free(data);
 }
 
 int isMime (const char *filepath, char *extension)

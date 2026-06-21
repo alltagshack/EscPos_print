@@ -3,3 +3,4 @@ bmp_print
 a.out
 *.o
 build/**/*
+core.*
