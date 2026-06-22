@@ -313,12 +313,10 @@ void printImage (int fd, const uint8_t *img)
  * 
  * @todo
  * - handle #, ##, ###
- * - handle bold
- * - handle emphasize as underline
- * - handle `code` as font A
+ * - handle bold (font B 2x width)
+ * - handle emphasize as underline + bold
+ * - handle `code` as font B
  * - handle unordered lists with "- "
- * - handle links (as bold)
- * - handle ordered list with "1. "
  */
 void printMarkdown (int fd, const uint8_t *src, const size_t *size)
 {
@@ -357,7 +355,7 @@ void printMarkdown (int fd, const uint8_t *src, const size_t *size)
 
     size_t out_used = outbuf_cap - outbytesleft;
 
-    // font B (default)
+    // font B
     write(fd, "\x1B\x4D\x01", 3);
     
     for (size_t i = 0; i < (out_used-2); ++i)
@@ -365,8 +363,12 @@ void printMarkdown (int fd, const uint8_t *src, const size_t *size)
         if (data[i] == '\n' && data[i+1] == '\n')
         {
             write(fd, "\n", 1);
+            // font A
+            write(fd, "\x1B\x4D\x00", 3);
             // reset to small size
             write(fd, "\x1D\x21\x00", 3);
+            // non bold
+            write(fd, "\x1B\x45\x00", 3);
             //linefeed mini
             write(fd, "\x1B\x33\x10", 3);
         }
@@ -374,11 +376,24 @@ void printMarkdown (int fd, const uint8_t *src, const size_t *size)
         {
             if (is_bold == 0) {
                 is_bold = 1;
-                write(fd, "\x1B\x45\x01", 3);
+                // font B
+                write(fd, "\x1B\x4D\x01", 3);
+                // 2x width
+                write(fd, "\x1D\x21\x10", 3);
+
             } else {
                 is_bold = 0;
-                write(fd, "\x1B\x45\x00", 3);
+                // font A
+                write(fd, "\x1B\x4D\x00", 3);
+                // normal width and height
+                write(fd, "\x1D\x21\x00", 3);
             }
+            i++;
+        }
+        else if (data[i] == ' ' && data[i+1] == ' ')
+        {
+            // shrink 2 or 3 spaces
+            if (data[i+2] == ' ') i++;
             i++;
         }
         else if (i > 0 && data[i] == '`' && data[i+1] != '`')
@@ -386,12 +401,12 @@ void printMarkdown (int fd, const uint8_t *src, const size_t *size)
             if (data[i-1] != '`') {
                 if (is_code == 0) {
                     is_code = 1;
-                    // font A
-                    write(fd, "\x1B\x4D\x00", 3);
-                } else {
-                    is_code = 0;
                     // font B
                     write(fd, "\x1B\x4D\x01", 3);
+                } else {
+                    is_code = 0;
+                    // font A
+                    write(fd, "\x1B\x4D\x00", 3);
                 }
             }
         }
@@ -400,12 +415,16 @@ void printMarkdown (int fd, const uint8_t *src, const size_t *size)
             if (data[i-1] != '*') {
                 if (is_emphasize == 0) {
                     is_emphasize = 1;
-                    // underline
-                    write(fd, "\x1B\x2D\x01", 3);
+                    // underline 2
+                    write(fd, "\x1B\x2D\x02", 3);
+                    // and bold
+                    write(fd, "\x1B\x45\x01", 3);
                 } else {
                     is_emphasize = 0;
                     // no-underline
                     write(fd, "\x1B\x2D\x00", 3);
+                    // and non bold
+                    write(fd, "\x1B\x45\x00", 3);
                 }
             }
         }
@@ -419,18 +438,26 @@ void printMarkdown (int fd, const uint8_t *src, const size_t *size)
             // simple headlines
             
             write(fd, "\n", 1);
-            // max font size
+            // font A
+            write(fd, "\x1B\x4D\x00", 3);
+            // 2x height 2x width
             write(fd, "\x1D\x21\x11", 3);
             i++;
             
             if ((i+1) < out_used && data[i+1] == '#') {
-                // max-1 font size
-                write(fd, "\x1D\x21\x10", 3);
+                // font B
+                write(fd, "\x1B\x4D\x01", 3);
+                // 2x height 2x width
+                write(fd, "\x1D\x21\x11", 3);
                 i++;
             }
             if ((i+1) < out_used && data[i+1] == '#') {
-                // max-2 font size
+                // font A
+                write(fd, "\x1B\x4D\x00", 3);
+                // 2x height 1x width
                 write(fd, "\x1D\x21\x01", 3);
+                // bold
+                write(fd, "\x1B\x45\x01", 3);
                 i++;
             }
             if ((i+1) < out_used && data[i+1] == ' ') i++;
@@ -439,6 +466,7 @@ void printMarkdown (int fd, const uint8_t *src, const size_t *size)
         else if (data[i] == '\n' && data[i+1] != '\n')
         {
             // ignore a single newline
+            if (i > 0 && data[i-1] != '\n') write(fd, " ", 1);
         }
         else
         {
@@ -449,77 +477,6 @@ void printMarkdown (int fd, const uint8_t *src, const size_t *size)
     write(fd, &(data[out_used-2]), 2);
     // final newline to print rest
     write(fd, "\n", 1);
-    
-    iconv_close(cd);
-    free(data);
-}
-
-
-
-void printMarkdown2 (int fd, uint8_t *src, const size_t *size)
-{
-    const char *in_encoding = "UTF-8";
-    const char *out_encoding = "CP858";
-
-    char *inbuf = (char *)src;
-    size_t inbytesleft = *size;
-    size_t outbytesleft = *size;
-    char *data = NULL;
-
-    iconv_t cd = iconv_open(out_encoding, in_encoding);
-    if (cd == (iconv_t) -1)
-    {
-        abort_("Failed to open conversion descriptor\n");
-    } 
-    
-    data = (char *) malloc(sizeof(char) * (*size));
-    
-    size_t result = iconv(cd, &inbuf, &inbytesleft, &data, &outbytesleft);
-    if (result == (size_t)-1)
-    {
-        iconv_close(cd);
-        free(data);
-        abort_("iconv failed");
-    }
-    
-    // font B (default)
-    write(fd, "\x1B\x4D\x01", 3);
-    
-    // process first byte makes the rest easier
-    write(fd, &(data[0]), 1);
-
-    for (size_t i = 1; i < outbytesleft; ++i)
-    {
-        if (data[i-1] == '\n' && data[i] == '\n')
-        {
-            write(fd, "\n\n", 2);
-            // reset to not-bold
-            write(fd, "\x1B\x45\x00", 3);
-        }
-        else if (data[i-1] == '\n' && data[i] == '-')
-        {
-            // simple unordered list
-            write(fd, "\n-", 2);
-        }
-        else if (data[i-1] == '\n' && data[i] == '#')
-        {
-            // simple headlines
-            if ((i+1) < outbytesleft && data[i+1] == '#') i++;
-            if ((i+1) < outbytesleft && data[i+1] == '#') i++;
-            if ((i+1) < outbytesleft && data[i+1] == ' ') i++;
-            
-            // bold
-            write(fd, "\x1B\x45\x01", 3);
-        }
-        else if (data[i-1] != '\n' && data[i] == '\n')
-        {
-            // ignore a single newline
-        }
-        else
-        {
-            write(fd, &(data[i]), 1);
-        }
-    }
     
     iconv_close(cd);
     free(data);

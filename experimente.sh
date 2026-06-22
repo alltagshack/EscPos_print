@@ -33,6 +33,16 @@ function FontB () {
 
 #---------------------------------------------
 
+function Underline () {
+    printf "\x1B\x2D\x01" > $PRINTER
+}
+
+function NoUnderline () {
+    printf "\x1B\x2D\x00" > $PRINTER
+}
+
+#---------------------------------------------
+
 function Nl0 () {
     printf "\x1B\x33\x10" > $PRINTER  # linefeed mini
 }
@@ -52,24 +62,25 @@ function Normal () {
 
 #---------------------------------------------
 
-function Big () {
-    printf "\x1D\x21\x11" > $PRINTER
+function FontAx2Height () {
+    printf "\x1B\x21\x10" > $PRINTER
+}
+function FontAx2Width () {
+    printf "\x1B\x21\x20" > $PRINTER
+}
+function FontAx2 () {
+    printf "\x1B\x21\x30" > $PRINTER
 }
 
-function Small () {
-    printf "\x1D\x21\x00" > $PRINTER
-}
 
 Init
-Print "Init"
-FontA
-Print "FontA"
-Normal
-Print "Normal"
-
-Init
-Print "Init"
-FontB
-Print "FontB"
-Normal
-Print "Normal"
+FontAx2Height
+Print "FontAx2Height"
+FontAx2Width
+Print "FontAx2Width"
+FontAx2
+Print "FontAx2"
+Underline
+Print "Underline"
+Bold
+Print "Bold"
