@@ -311,7 +311,6 @@ void printImage (int fd, const uint8_t *img)
 /**
  * print utf-8 binary (without bom, and only \n) with markdown format
  * 
- * @todo
  * - handle #, ##, ###
  * - handle bold (font B 2x width)
  * - handle emphasize as underline + bold
@@ -324,6 +323,9 @@ void printMarkdown (int fd, const uint8_t *src, const size_t *size)
     int is_bold = 0;
     int is_emphasize = 0;
     int is_code = 0;
+    int is_list = 0;
+    int line_width = 0;
+    int char_width = 0;
     const char *in_encoding  = "UTF-8";
     const char *out_encoding = "CP858";
 
@@ -355,8 +357,8 @@ void printMarkdown (int fd, const uint8_t *src, const size_t *size)
 
     size_t out_used = outbuf_cap - outbytesleft;
 
-    // font B
-    write(fd, "\x1B\x4D\x01", 3);
+    // font A
+    write(fd, "\x1B\x4D\x00", 3);
     
     for (size_t i = 0; i < (out_used-2); ++i)
     {
@@ -365,16 +367,22 @@ void printMarkdown (int fd, const uint8_t *src, const size_t *size)
             write(fd, "\n", 1);
             // font A
             write(fd, "\x1B\x4D\x00", 3);
+            char_width = 12;
             // reset to small size
             write(fd, "\x1D\x21\x00", 3);
             // non bold
             write(fd, "\x1B\x45\x00", 3);
             //linefeed mini
             write(fd, "\x1B\x33\x10", 3);
+            // first line without margin
+            write(fd, "\x1D\x4C\x00\x00", 4);
+            
+            is_list = 0;
         }
         else if (data[i] == '*' && data[i+1] == '*')
         {
             if (is_bold == 0) {
+                char_width = 18;
                 is_bold = 1;
                 // font B
                 write(fd, "\x1B\x4D\x01", 3);
@@ -382,6 +390,7 @@ void printMarkdown (int fd, const uint8_t *src, const size_t *size)
                 write(fd, "\x1D\x21\x10", 3);
 
             } else {
+                char_width = 12;
                 is_bold = 0;
                 // font A
                 write(fd, "\x1B\x4D\x00", 3);
@@ -400,10 +409,12 @@ void printMarkdown (int fd, const uint8_t *src, const size_t *size)
         {
             if (data[i-1] != '`') {
                 if (is_code == 0) {
+                    char_width = 9;
                     is_code = 1;
                     // font B
                     write(fd, "\x1B\x4D\x01", 3);
                 } else {
+                    char_width = 12;
                     is_code = 0;
                     // font A
                     write(fd, "\x1B\x4D\x00", 3);
@@ -414,12 +425,14 @@ void printMarkdown (int fd, const uint8_t *src, const size_t *size)
         {
             if (data[i-1] != '*') {
                 if (is_emphasize == 0) {
+                    char_width = 12;
                     is_emphasize = 1;
                     // underline 2
                     write(fd, "\x1B\x2D\x02", 3);
                     // and bold
                     write(fd, "\x1B\x45\x01", 3);
                 } else {
+                    char_width = 12;
                     is_emphasize = 0;
                     // no-underline
                     write(fd, "\x1B\x2D\x00", 3);
@@ -432,6 +445,10 @@ void printMarkdown (int fd, const uint8_t *src, const size_t *size)
         {
             // simple unordered list has newlines
             write(fd, "\n", 1);
+            line_width = 0;
+            is_list = 1;
+            // first line without margin
+            write(fd, "\x1D\x4C\x00\x00", 4);
         }
         else if (data[i] == '\n' && data[i+1] == '#')
         {
@@ -442,6 +459,7 @@ void printMarkdown (int fd, const uint8_t *src, const size_t *size)
             write(fd, "\x1B\x4D\x00", 3);
             // 2x height 2x width
             write(fd, "\x1D\x21\x11", 3);
+            char_width = 24;
             i++;
             
             if ((i+1) < out_used && data[i+1] == '#') {
@@ -449,6 +467,7 @@ void printMarkdown (int fd, const uint8_t *src, const size_t *size)
                 write(fd, "\x1B\x4D\x01", 3);
                 // 2x height 2x width
                 write(fd, "\x1D\x21\x11", 3);
+                char_width = 18;
                 i++;
             }
             if ((i+1) < out_used && data[i+1] == '#') {
@@ -456,6 +475,7 @@ void printMarkdown (int fd, const uint8_t *src, const size_t *size)
                 write(fd, "\x1B\x4D\x00", 3);
                 // 2x height 1x width
                 write(fd, "\x1D\x21\x01", 3);
+                char_width = 12;
                 // bold
                 write(fd, "\x1B\x45\x01", 3);
                 i++;
@@ -466,14 +486,27 @@ void printMarkdown (int fd, const uint8_t *src, const size_t *size)
         else if (data[i] == '\n' && data[i+1] != '\n')
         {
             // ignore a single newline
-            if (i > 0 && data[i-1] != '\n') write(fd, " ", 1);
+            if (i > 0 && data[i-1] != '\n') {
+                write(fd, " ", 1);
+                line_width += char_width;
+            }
         }
         else
         {
+            line_width += char_width;
+            if (is_list > 0 && line_width > 384) {
+                // force newline
+                write(fd, "\n", 1);
+                // left margin 24
+                write(fd, "\x1D\x4C\24\x00", 4);
+                // new intial line width
+                line_width = 24 + char_width;
+            }
             write(fd, &(data[i]), 1);
         }
     }
 
+    /// @todo this end is a bit to dirty
     write(fd, &(data[out_used-2]), 2);
     // final newline to print rest
     write(fd, "\n", 1);

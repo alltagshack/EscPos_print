@@ -72,15 +72,12 @@ function FontAx2 () {
     printf "\x1B\x21\x30" > $PRINTER
 }
 
+function LeftMarginX18 () {
+    printf "\x1D\x4C\x18\x00" > $PRINTER
+}
 
 Init
-FontAx2Height
-Print "FontAx2Height"
-FontAx2Width
-Print "FontAx2Width"
-FontAx2
-Print "FontAx2"
-Underline
-Print "Underline"
-Bold
-Print "Bold"
+Print "Hallo zusammen. Was ist hier los? Geht es noch so wie es soll?"
+LeftMarginX18
+Print "Hallo zusammen. Was ist hier los? Geht es noch so wie es soll?"
+
