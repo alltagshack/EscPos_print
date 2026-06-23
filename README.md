@@ -1,6 +1,7 @@
-# EscPos_print
+# EscPos print
 
-EscPos_print is an easy and simple tool for a direct access to a ESC/POS
+
+The project is an easy and simple tool for a direct access to a ESC/POS
 58mm thermo printer on e.g. `/dev/usb/lp0`.
 
 The tool prints 3 kinds of documents:
@@ -9,10 +10,9 @@ The tool prints 3 kinds of documents:
 - bmp (256 gray values, scaled to max width)
 - md text UTF-8 files (Markdown)
 
-For *Markdown* and UTF-8 the default `iconv.h` is used to convert it to CP858.
-It is tested the german special chars.
 
-For *png* Images the libpng library is used.
+For *Markdown* and UTF-8 the default `iconv.h` is used to convert it to CP858.
+It is tested the german special chars. For *png* Images the libpng library is used.
 
 ![screenshot](examples/screenshot.png)
 
@@ -30,6 +30,7 @@ The **Atkinson dithering** is used for pictures.
 
 ### Headlines
 
+
 Three versions of headlines via `#`, `##` and `###` are supported.
 
 - a newline before and space behind the last `#` is needed
@@ -37,12 +38,14 @@ Three versions of headlines via `#`, `##` and `###` are supported.
 
 ### Unordered Lists
 
+
 Only an unordered list with the deep 1 is supported.
 
 - starts with `-` and a single space
 - a list ends with 2 newlines
 
 ### Font
+
 
 A text (without newline) which is between these characters...
 
@@ -61,6 +64,7 @@ A text (without newline) which is between these characters...
 
 ## Compile
 
+
 ```
 cmake -B build
 cmake --build build
@@ -68,20 +72,26 @@ cmake --build build
 
 ## Usage
 
+
+Use an example: `build/escposPrint examples/keyboard.png /dev/usb/lp0` or...
+
 ```
 cd build
-./escposPrint ./escposPrint <bmp png or md file> <device>
+./escposPrint ./escposPrint <bmp, png or md file> <device>
 ```
 
-It is possible, the you have to add yourself to the `device` (?) group first,
+
+It is possible, that you have to add yourself to the `lp` or `device` group first,
 to get access to the printer device.
 
-### Limited
+## Limited
+
 
 The format support and maybe the font sizes varry on each device. I am
 sorry about that. A 100% support is not guaranteed.
 
 ## License
+
 
 This is free and unencumbered software released into the public domain.
 
