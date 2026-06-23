@@ -1,14 +1,4 @@
-/*  echo -e "\x1B\x2A\x00\x03\x00\xAA\xAA\xAA" > /dev/usb/lp0
- *
- *  180dpi mode
- * 
- *  Compile (needs libpng and iconv?):
- *      gcc escpos_print.c -Wall -lpng -o escposPrint
- *
- *  Usage:
- *      ./escposPrint <bmp png or md file> <device>
- *
- */
+/* 180dpi mode */
 
 #include <errno.h>
 #include <stdio.h>
@@ -450,8 +440,10 @@ void printMarkdown (int fd, const uint8_t *src, const size_t *size)
             // first line without margin
             write(fd, "\x1D\x4C\x00\x00", 4);
         }
-        else if (data[i] == '\n' && data[i+1] == '#')
-        {
+        else if (
+            (data[i] == '\n' && data[i+1] == '#') ||
+            (i == 0 && data[i] == '#')
+        ) {
             // simple headlines
             
             write(fd, "\n", 1);

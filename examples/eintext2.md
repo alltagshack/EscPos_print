@@ -1,6 +1,7 @@
 ﻿Diese Konversation wurde mit Duck.ai (https://duck.ai) unter Verwendung
 des GPT-OSS 120B-Modells von OpenAI generiert.
 
+
 KI-Chats zeigen möglicherweise falsche oder anstößige Informationen
 an (weitere Informationen siehe https://duckduckgo.com/duckai/privacy-terms).
 
@@ -32,14 +33,14 @@ erzeugt intern eine minimale `sdkconfig.h`, die beim Kompilieren eingebunden wir
 ## Warum du `menuconfig` in Arduino nicht siehst
 
 1. Vordefinierte Konfiguration: Die Arduino‑Core‑Bibliothek liefert bereits eine fertige `sdkconfig.h`.  
-2. **Keine direkte Benutzer‑Oberfläche** – Arduino IDE bietet keinen Aufruf von `make menuconfig`; das wäre
+1. **Keine direkte Benutzer‑Oberfläche** – Arduino IDE bietet keinen Aufruf von `make menuconfig`; das wäre
    ein zusätzlicher Schritt, den die IDE bewusst weglässt, um die Benutzerfreundlichkeit zu erhalten.  
-3. Statt `menuconfig` kannst du in Arduino
+1. Statt `menuconfig` kannst du in Arduino
    über die wichtigsten Optionen einstellen.
 
 Der CMake‑Code greift dann automatisch auf `variants/esp32s2` zu.
 
-```bash
+```
 idf.py set-target esp32s2
 idf.py build
 ```
