@@ -17,7 +17,7 @@ int allowed_w = 360;
 
 #define CLAMP(v, lo, hi) ((v) < (lo) ? (lo) : ((v) > (hi) ? (hi) : (v)))
 
-#pragma pack(push,1)                     // Struktur ohne Padding
+#pragma pack(push,1)                     // a struct without padding
 typedef struct {
     uint16_t bfType;      // 0 'BM'
     uint32_t bfSize;      // 2  filesize

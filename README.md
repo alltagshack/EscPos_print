@@ -81,7 +81,7 @@ to get access to the printer device.
 The format support and maybe the font sizes varry on each device. I am
 sorry about that. A 100% support is not guaranteed.
 
-## Licence
+## License
 
 This is free and unencumbered software released into the public domain.
 

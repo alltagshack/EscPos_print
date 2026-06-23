@@ -1,6 +1,19 @@
+.vscode/**/*
+
+build/**/*
+
 escposPrint
-bmp_print
 a.out
 *.o
-build/**/*
+
 core.*
+
+.cache/**/*
+CMakeFiles/**/*
+CMakeCache.txt
+cmake_install.cmake
+Makefile
+
+# used by clangd vscode extension.
+# cmake -DCMAKE_EXPORT_COMPILE_COMMANDS=ON .
+compile_commands.json
