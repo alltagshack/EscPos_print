@@ -2,67 +2,73 @@
 #include <stdlib.h>
 #include <stddef.h>
 #include <stdio.h>
-#include <unistd.h> // write
+/* write */
+#include <unistd.h>
 
 #include "printing.h"
 
 uint8_t *scaleMax (const uint8_t *src, int w, int h, int new_w, int *new_h)
 {
+    int x, y;
+    uint8_t *dst;
     double scale = (double)new_w/w;
     
-    int h2 = scale * h;
-    uint8_t *dst = (uint8_t *) malloc(new_w * h2);
+    *new_h = scale * h;
+    dst = (uint8_t *) malloc(new_w * (*new_h));
 
-    for (int y = 0; y < h2; ++y)
+    for (y = 0; y < (*new_h); ++y)
     {
-        for (int x = 0; x < new_w; ++x) {
+        for (x = 0; x < new_w; ++x) {
             dst[y * new_w + x] = src[(int)((float)y/scale) * w + (int)((float)x/scale)];
         }
     }
 
-    *new_h = h2;
     return dst;
 }
 
 void ditherAtkinson (uint8_t *img, int w, int h)
 {
-    for (int y = 0; y < h; y++) {
-        for (int x = 0; x < w; x++) {
+    int x, y, i, err, diff;
+    uint8_t old, fresh;
 
-            int i = y * w + x;
-            uint8_t old = img[i];
-            uint8_t new = (old < 128) ? 0 : 255;
-            img[i] = new;
+    for (y = 0; y < h; y++) {
+        for (x = 0; x < w; x++) {
 
-            int err = (int)old - (int)new;
-            int diff = err / 8;  // Fehleranteil pro Nachbar
+            i = y * w + x;
+            old = img[i];
+            fresh = (old < 128) ? 0 : 255;
+            img[i] = fresh;
 
-            // Atkinson-Maske:
-            //       X   1   1
-            //   1   1   1
-            //       1
+            err = (int)old - (int)fresh;
+            diff = err / 8;  /* diffusion error per neighbor */
 
-            // y, x+1
+            /* Atkinson-Maske:
+             *       X   1   1
+             *   1   1   1
+             *       1
+             */
+
+            /* y, x+1 */
             if (x + 1 < w)
                 img[i + 1] = (uint8_t)CLAMP(img[i + 1] + diff, 0, 255);
 
-            // y, x+2
+            /* y, x+2 */
             if (x + 2 < w)
                 img[i + 2] = (uint8_t)CLAMP(img[i + 2] + diff, 0, 255);
 
-            // y+1, x-1
+            /* y+1, x-1 */
             if (y + 1 < h && x - 1 >= 0)
                 img[i + w - 1] = (uint8_t)CLAMP(img[i + w - 1] + diff, 0, 255);
 
-            // y+1, x
+            /* y+1, x */
             if (y + 1 < h)
                 img[i + w] = (uint8_t)CLAMP(img[i + w] + diff, 0, 255);
 
-            // y+1, x+1
+            /* y+1, x+1 */
             if (y + 1 < h && x + 1 < w)
                 img[i + w + 1] = (uint8_t)CLAMP(img[i + w + 1] + diff, 0, 255);
 
-            // y+2, x
+            /* y+2, x */
             if (y + 2 < h)
                 img[i + 2 * w] = (uint8_t)CLAMP(img[i + 2 * w] + diff, 0, 255);
         }
@@ -71,31 +77,37 @@ void ditherAtkinson (uint8_t *img, int w, int h)
 
 void printRaster (int fd, const uint8_t *bmp, uint16_t width, int height)
 {
+    int line, x, y, i, b, posY;
     int lines = height / 24;
-    uint8_t nL = width & 0xFF;
-    uint8_t nH = (width >> 8) & 0xFF;
+    uint8_t pixel, byte, nL, nH;
+    uint8_t hdr[5];
+
+    nL = width & 0xFF;
+    nH = (width >> 8) & 0xFF;
+
+    hdr[0] = 0x1B;
+    hdr[1] = 0x2A;
+    hdr[2] = 0x21;
+    hdr[3] = nL;
+    hdr[4] = nH;
     
-    uint8_t hdr[5] = {
-        0x1B, 0x2A, 0x21, nL, nH
-    };
-    
-    for (int line = 0; line < lines; ++line)
+    for (line = 0; line < lines; ++line)
     {
         write(fd, hdr, sizeof(hdr));
 
-        for (int x = 0; x < width; x+=3)
+        for (x = 0; x < width; x+=3)
         {
-            for (int i = 0; i < 3; ++i)
+            for (i = 0; i < 3; ++i)
             {
-                for (int b = 0; b < 3; ++b)
+                for (b = 0; b < 3; ++b)
                 {
-                    uint8_t byte = 0;
-                    for (int y = 0; y < 8; ++y)
+                    byte = 0;
+                    for (y = 0; y < 8; ++y)
                     {
-                        int posY = line * 24 + y + b*8;
+                        posY = line * 24 + y + b*8;
                         if (posY >= height) continue;
                         if ((x+i) < width) {
-                            uint8_t pixel = bmp[posY * width + x + i];
+                            pixel = bmp[posY * width + x + i];
                             if (pixel < 128) {
                                 byte |= (1 << (7 - y));
                             }
@@ -117,7 +129,7 @@ void printImage (int fd, const uint8_t *img, int w, int h, int max_width)
     printf("load with width=%d height=%d\n", w, h);
     scaled = scaleMax(img, w, h, max_width, &new_h);
     ditherAtkinson(scaled, max_width, new_h);
-    // linefeed to 0
+    /* linefeed to 0 */
     write(fd, "\x1B\x33\x00", 3);
     printRaster(fd, scaled, max_width, new_h);
     free(scaled);

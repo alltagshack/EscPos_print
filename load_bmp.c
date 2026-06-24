@@ -9,13 +9,14 @@
 uint8_t *loadBmp (const char *path, int *w, int *h)
 {
     uint8_t *row;
-    uint8_t *gray = NULL;
-    int rowSize;
+    uint8_t *gray;
+    int y, rowSize;
     int padding;
+    FILE *fp;
     BITMAPFILEHEADER fh = {0};
     BITMAPINFOHEADER ih = {0};
     
-    FILE *fp = fopen(path, "rb");
+    fp = fopen(path, "rb");
     if (!fp) g_abort("cannot open image file");
 
     fread(&fh, sizeof(BITMAPFILEHEADER), 1, fp);
@@ -26,10 +27,11 @@ uint8_t *loadBmp (const char *path, int *w, int *h)
     *h = ih.biHeight;
     rowSize = ((*w + 3) / 4) * 4;
     padding = rowSize - *w;
-    
+
+    gray = NULL;
     gray = (uint8_t *) malloc(sizeof(uint8_t) * (*w) * *h);
     
-    for(int y = 0; y < *h; ++y)
+    for(y = 0; y < *h; ++y)
     {
         row = gray + (*h - y - 1) * (*w);
         fread(row, 1, *w, fp);

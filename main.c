@@ -5,8 +5,10 @@
 #include <stdint.h>
 #include <string.h>
 #include <stdlib.h>
-#include <unistd.h> // write, close
-#include <fcntl.h> // open
+/* write, close */
+#include <unistd.h>
+/* open */
+#include <fcntl.h>
 
 #include "globals.h"
 #include "load_bmp.h"
@@ -31,44 +33,46 @@ int isMime (const char *filepath, char *extension)
 
 int main (int argc, char *argv[])
 {
+    int w, h;
+    size_t sz;
+    uint8_t *src;
+    int fd;
+
+    const char *src_path = argv[1];
+    const char *dev_path = argv[2];
+
+
     if (argc != 3) {
         fprintf(stderr, "Usage: %s <bmp png or md file> <device>\n", argv[0]);
         return EXIT_FAILURE;
     }
 
-    int src_w = 0;
-    int src_h = 0;
-
-    const char *src_path = argv[1];
-    const char *dev_path = argv[2];
-
-    uint8_t *src = NULL;
-    int fd;
-
     fd = open(dev_path, O_WRONLY);
     if (fd < 0) g_abort("cannot open device for writing");
-    // reset
+    /* reset */
     write(fd, "\x1B\x40", 2);
-    // Codepage 858
+    /* Codepage 858 */
     write(fd, "\x1B\x74\x13", 3);
-    // CPI Mode
+    /* CPI Mode */
     write(fd, "\x1B\xC1\x01", 3);
 
+    src = NULL;
+    w = 0;
+    h = 0;
     if (isMime(src_path, ".bmp") == 1)
     {
-        src = loadBmp(src_path, &src_w, &src_h);
-        printImage(fd, src, src_w, src_h, allowed_w);
+        src = loadBmp(src_path, &w, &h);
+        printImage(fd, src, w, h, allowed_w);
     }
     else if (isMime(src_path, ".png") == 1)
     {
-        src = loadPng(src_path, &src_w, &src_h);
-        printImage(fd, src, src_w, src_h, allowed_w);
+        src = loadPng(src_path, &w, &h);
+        printImage(fd, src, w, h, allowed_w);
     }
     else if (isMime(src_path, ".md") == 1)
     {
-        size_t size;
-        src = loadMarkdown(src_path, &size);
-        printMarkdown(fd, src, &size);
+        src = loadMarkdown(src_path, &sz);
+        printMarkdown(fd, src, &sz);
     }
 
     close(fd);

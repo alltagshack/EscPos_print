@@ -18,6 +18,15 @@ It is tested the german special chars. For *png* Images the libpng library is us
 
 The **Atkinson dithering** is used for pictures.
 
+**Special**: ANSI-C with pedantic-error flag just for fun!
+
+## To Do
+
+- more error handling
+- try out "sanatizer"
+- unit tests
+- code coverage
+
 ## The limitted Markdown features
 
 ### Text
